@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EggChat</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e1e2e;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            padding: 30px;
+            border: 1px solid #2d2d44;
+        }
+        
+        h1 {
+            color: #e0e0e0;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2em;
+        }
+        
+        h2 {
+            color: #c0c0c0;
+            margin: 30px 0 15px 0;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .welcome {
+            background: #2a2a3e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.2em;
+            color: #8b9aff;
+            border: 1px solid #3a3a4e;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #c0c0c0;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        input[type="email"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #3a3a4e;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            background: #2a2a3e;
+            color: #e0e0e0;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        input[type="email"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #2f2f44;
+        }
+        
+        input[type="text"]::placeholder,
+        input[type="password"]::placeholder,
+        input[type="email"]::placeholder {
+            color: #888;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .error {
+            background: #3a2525;
+            color: #ff6b6b;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border-left: 4px solid #ff6b6b;
+        }
+        
+        .error a {
+            color: #8b9aff;
+            text-decoration: underline;
+            font-weight: bold;
+        }
+        
+        .error-debug {
+            background: #2a2a2a;
+            color: #999;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        .messages {
+            background: #2a2a3e;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #3a3a4e;
+        }
+        
+        .messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .messages::-webkit-scrollbar-track {
+            background: #1e1e2e;
+            border-radius: 4px;
+        }
+        
+        .messages::-webkit-scrollbar-thumb {
+            background: #4a4a5e;
+            border-radius: 4px;
+        }
+        
+        .messages::-webkit-scrollbar-thumb:hover {
+            background: #5a5a6e;
+        }
+        
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #1e1e2e;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+            border: 1px solid #2d2d44;
+        }
+        
+        .message-header {
+            font-weight: bold;
+            color: #8b9aff;
+            margin-bottom: 5px;
+        }
+        
+        .message-content {
+            color: #e0e0e0;
+        }
+        
+        .private-message {
+            border-left-color: #a78bfa;
+        }
+        
+        .private-message .message-header {
+            color: #a78bfa;
+        }
+        
+        .send-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .send-form input {
+            flex: 1;
+        }
+        
+        .send-form button {
+            margin: 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .switch-link {
+            color: #8b9aff;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        
+        .switch-link:hover {
+            color: #a5b4ff;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 20px;
+                border-radius: 8px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+                margin-bottom: 20px;
+            }
+            
+            h2 {
+                font-size: 1.3em;
+                margin: 20px 0 12px 0;
+            }
+            
+            .welcome {
+                padding: 12px;
+                font-size: 1em;
+            }
+            
+            .send-form {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .send-form input {
+                width: 100%;
+                padding: 14px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .send-form button {
+                width: 100%;
+                padding: 14px;
+                margin: 0;
+            }
+            
+            button {
+                width: 100%;
+                margin-right: 0;
+                margin-top: 10px;
+                padding: 14px;
+            }
+            
+            .messages {
+                max-height: 300px;
+                padding: 12px;
+            }
+            
+            .message {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+            
+            .form-group {
+                margin-bottom: 16px;
+            }
+            
+            input[type="text"],
+            input[type="password"],
+            input[type="email"] {
+                padding: 14px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.3em;
+            }
+            
+            h2 {
+                font-size: 1.1em;
+            }
+            
+            .messages {
+                max-height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login/Sign Up Screen -->
+        <div id="authScreen">
+            <h1>EggChat</h1>
+            <h2 id="authTitle">Login</h2>
+            
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter your username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter your password">
+            </div>
+            
+            <button id="authButton" onclick="handleAuth()">Login</button>
+            <div class="switch-link" onclick="toggleAuthMode()" id="switchLink">Switch to Sign Up</div>
+            
+            <div id="errorContainer"></div>
+        </div>
+        
+        <!-- Chat Screen -->
+        <div id="chatScreen" class="hidden">
+            <h1>EggChat</h1>
+            <div class="welcome" id="welcomeMessage">Welcome, <span id="usernameDisplay"></span></div>
+            
+            <h2>Public</h2>
+            <div class="send-form">
+                <input type="text" id="publicMessage" placeholder="Type your public message...">
+                <button onclick="sendPublicMessage()">Send</button>
+            </div>
+            <div class="messages" id="publicMessages"></div>
+            
+            <h2>Private</h2>
+            <div class="send-form">
+                <input type="text" id="privateTo" placeholder="To (username)">
+                <input type="text" id="privateMessage" placeholder="Type your private message...">
+                <button onclick="sendPrivateMessage()">Send</button>
+            </div>
+            <div id="chatErrorContainer"></div>
+            <div class="messages" id="privateMessages"></div>
+            
+            <button onclick="logout()" style="background: #dc2626; margin-top: 20px;">Logout</button>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // FIREBASE CONFIGURATION - REPLACE WITH YOUR OWN
+        // ============================================
+        // 
+        // IMPORTANT: You also need to set up Firestore Security Rules!
+        // Go to Firebase Console > Firestore Database > Rules tab
+        // and paste these rules:
+        //
+        // rules_version = '2';
+        // service cloud.firestore {
+        //   match /databases/{database}/documents {
+        //     // Users collection - users can read any user, but only update their own
+        //     match /users/{userId} {
+        //       allow read: if true;
+        //       allow create: if request.auth != null && request.auth.uid == userId;
+        //       allow update: if request.auth != null && request.auth.uid == userId;
+        //     }
+        //     
+        //     // Public messages - anyone authenticated can read and write
+        //     match /publicMessages/{messageId} {
+        //       allow read: if request.auth != null;
+        //       allow create: if request.auth != null;
+        //     }
+        //     
+        //     // Private messages - users can only read/write messages they're part of
+        //     match /privateMessages/{messageId} {
+        //       allow read: if request.auth != null && 
+        //                      request.auth.uid in resource.data.participants;
+        //       allow create: if request.auth != null && 
+        //                       request.auth.uid == request.resource.data.fromUserId &&
+        //                       request.auth.uid in request.resource.data.participants;
+        //     }
+        //   }
+        // }
+        //
+        // NOTE: You may also need to create a Firestore composite index for private messages.
+        // If you see an error about a missing index, click the link in the error message
+        // to create it automatically. The index is for: participants (array-contains) + timestamp (desc)
+        //
+        // ============================================
+        const firebaseConfig = {
+          apiKey: "AIzaSyD8ud639qk7fgxB5fy6edYRF7TG3Vklo-I",
+          authDomain: "kami-eggchat.firebaseapp.com",
+          projectId: "kami-eggchat",
+          storageBucket: "kami-eggchat.firebasestorage.app",
+          messagingSenderId: "684842242424",
+          appId: "1:684842242424:web:31a4c7224fce15896e388d",
+          measurementId: "G-Q6XNRMM48J"
+        };
+        // ============================================
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        let isSignUpMode = false;
+        let currentUser = null;
+        let publicMessagesUnsubscribe = null;
+        let privateMessagesUnsubscribe = null;
+        
+        // Check if user is already logged in
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                loadUserData();
+                showChatScreen();
+            } else {
+                showAuthScreen();
+            }
+        });
+        
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            const authTitle = document.getElementById('authTitle');
+            const authButton = document.getElementById('authButton');
+            const switchLink = document.getElementById('switchLink');
+            
+            if (isSignUpMode) {
+                authTitle.textContent = 'Sign Up';
+                authButton.textContent = 'Sign Up';
+                switchLink.textContent = 'Switch to Login';
+            } else {
+                authTitle.textContent = 'Login';
+                authButton.textContent = 'Login';
+                switchLink.textContent = 'Switch to Sign Up';
+            }
+            
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+        
+        async function handleAuth() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = '';
+            
+            if (!username || !password) {
+                showError('Please enter both username and password.');
+                return;
+            }
+            
+            try {
+                if (isSignUpMode) {
+                    // Sign up
+                    const userCredential = await auth.createUserWithEmailAndPassword(
+                        username + '@eggchat.local',
+                        password
+                    );
+                    
+                    // Store username in Firestore
+                    await db.collection('users').doc(userCredential.user.uid).set({
+                        username: username,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Sign in
+                    await auth.signInWithEmailAndPassword(
+                        username + '@eggchat.local',
+                        password
+                    );
+                }
+            } catch (error) {
+                showError('Authentication failed. Please check your credentials.', error);
+            }
+        }
+        
+        function showError(cleanMessage, firebaseError = null) {
+            // Check which screen is visible
+            const chatScreen = document.getElementById('chatScreen');
+            const authScreen = document.getElementById('authScreen');
+            
+            let errorContainer = null;
+            
+            // If chat screen is visible, use chat error container
+            if (chatScreen && !chatScreen.classList.contains('hidden')) {
+                errorContainer = document.getElementById('chatErrorContainer');
+            } 
+            // Otherwise use auth screen error container
+            else if (authScreen && !authScreen.classList.contains('hidden')) {
+                errorContainer = document.getElementById('errorContainer');
+            }
+            
+            if (!errorContainer) return;
+            
+            let errorHTML = `<div class="error">${cleanMessage}</div>`;
+            
+            if (firebaseError) {
+                errorHTML += `<div class="error-debug">Firebase Error: ${firebaseError.code} - ${firebaseError.message}</div>`;
+            }
+            
+            errorContainer.innerHTML = errorHTML;
+            
+            // Auto-clear error after 5 seconds for chat errors
+            if (errorContainer.id === 'chatErrorContainer') {
+                setTimeout(() => {
+                    errorContainer.innerHTML = '';
+                }, 5000);
+            }
+        }
+        
+        async function loadUserData() {
+            if (!currentUser) return;
+            
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            if (userDoc.exists) {
+                const username = userDoc.data().username;
+                document.getElementById('usernameDisplay').textContent = username;
+            }
+        }
+        
+        function showAuthScreen() {
+            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('chatScreen').classList.add('hidden');
+            
+            // Clean up listeners
+            if (publicMessagesUnsubscribe) {
+                publicMessagesUnsubscribe();
+                publicMessagesUnsubscribe = null;
+            }
+            if (privateMessagesUnsubscribe) {
+                privateMessagesUnsubscribe();
+                privateMessagesUnsubscribe = null;
+            }
+        }
+        
+        function showChatScreen() {
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('chatScreen').classList.remove('hidden');
+            
+            loadPublicMessages();
+            loadPrivateMessages();
+            
+            // Set up Enter key listeners for chat inputs
+            setupChatEnterKeyListeners();
+        }
+        
+        function setupChatEnterKeyListeners() {
+            const publicMessageInput = document.getElementById('publicMessage');
+            const privateMessageInput = document.getElementById('privateMessage');
+            
+            // Remove existing listeners if any
+            const newPublicInput = publicMessageInput.cloneNode(true);
+            publicMessageInput.parentNode.replaceChild(newPublicInput, publicMessageInput);
+            
+            const newPrivateInput = privateMessageInput.cloneNode(true);
+            privateMessageInput.parentNode.replaceChild(newPrivateInput, privateMessageInput);
+            
+            // Add new listeners
+            document.getElementById('publicMessage').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendPublicMessage();
+                }
+            });
+            
+            document.getElementById('privateMessage').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendPrivateMessage();
+                }
+            });
+        }
+        
+        function loadPublicMessages() {
+            const publicMessagesDiv = document.getElementById('publicMessages');
+            
+            // Subscribe to public messages (limit to 3 most recent)
+            publicMessagesUnsubscribe = db.collection('publicMessages')
+                .orderBy('timestamp', 'desc')
+                .limit(3)
+                .onSnapshot((snapshot) => {
+                    publicMessagesDiv.innerHTML = '';
+                    let messageNumber = 1;
+                    
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message';
+                        messageDiv.innerHTML = `
+                            <div class="message-header">#${messageNumber}: ${data.username}</div>
+                            <div class="message-content">${escapeHtml(data.message)}</div>
+                        `;
+                        publicMessagesDiv.appendChild(messageDiv);
+                        messageNumber++;
+                    });
+                });
+        }
+        
+        async function sendPublicMessage() {
+            const messageInput = document.getElementById('publicMessage');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+            
+            if (!currentUser) {
+                showError('You must be logged in to send messages.');
+                return;
+            }
+            
+            try {
+                const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                const username = userDoc.exists ? userDoc.data().username : 'Unknown';
+                
+                await db.collection('publicMessages').add({
+                    username: username,
+                    message: message,
+                    userId: currentUser.uid,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                messageInput.value = '';
+            } catch (error) {
+                if (error.code === 'permission-denied') {
+                    showError('Permission denied. Please check your Firestore security rules. See the comment in the code for the required rules.', error);
+                } else {
+                    showError('Failed to send message.', error);
+                }
+            }
+        }
+        
+        function loadPrivateMessages() {
+            const privateMessagesDiv = document.getElementById('privateMessages');
+            
+            if (!currentUser) return;
+            
+            // Subscribe to private messages where current user is sender or recipient
+            // Limit to 25 most recent messages
+            privateMessagesUnsubscribe = db.collection('privateMessages')
+                .where('participants', 'array-contains', currentUser.uid)
+                .orderBy('timestamp', 'desc')
+                .limit(25)
+                .onSnapshot(async (snapshot) => {
+                    privateMessagesDiv.innerHTML = '';
+                    
+                    // Get all user data for usernames
+                    const userIds = new Set();
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        userIds.add(data.fromUserId);
+                        userIds.add(data.toUserId);
+                    });
+                    
+                    const userDataMap = {};
+                    const userPromises = Array.from(userIds).map(async (uid) => {
+                        const userDoc = await db.collection('users').doc(uid).get();
+                        if (userDoc.exists) {
+                            userDataMap[uid] = userDoc.data().username;
+                        }
+                    });
+                    await Promise.all(userPromises);
+                    
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message private-message';
+                        
+                        const fromUsername = userDataMap[data.fromUserId] || 'Unknown';
+                        const toUsername = userDataMap[data.toUserId] || 'Unknown';
+                        
+                        if (data.fromUserId === currentUser.uid) {
+                            // Message sent by current user
+                            messageDiv.innerHTML = `
+                                <div class="message-header">-> ${toUsername}:</div>
+                                <div class="message-content">${escapeHtml(data.message)}</div>
+                            `;
+                        } else {
+                            // Message received by current user
+                            messageDiv.innerHTML = `
+                                <div class="message-header">${fromUsername} -></div>
+                                <div class="message-content">${escapeHtml(data.message)}</div>
+                            `;
+                        }
+                        
+                        privateMessagesDiv.appendChild(messageDiv);
+                    });
+                }, (error) => {
+                    if (error.code === 'permission-denied') {
+                        showError('Permission denied. Please check your Firestore security rules. See the comment in the code for the required rules.', error);
+                    } else if (error.code === 'failed-precondition' && error.message.includes('index')) {
+                        // Extract the index creation URL from the error message
+                        const indexUrlMatch = error.message.match(/https:\/\/[^\s]+/);
+                        if (indexUrlMatch) {
+                            const indexUrl = indexUrlMatch[0];
+                            showError('Firestore index required. <a href="' + indexUrl + '" target="_blank" style="color: #667eea; text-decoration: underline;">Click here to create it</a> (it may take a few minutes to build).', error);
+                        } else {
+                            showError('Firestore index required. Please check the Firebase Console to create the required index for private messages.', error);
+                        }
+                    } else {
+                        showError('Failed to load private messages.', error);
+                    }
+                });
+        }
+        
+        async function sendPrivateMessage() {
+            const toInput = document.getElementById('privateTo');
+            const messageInput = document.getElementById('privateMessage');
+            const toUsername = toInput.value.trim();
+            const message = messageInput.value.trim();
+            
+            if (!toUsername || !message) {
+                showError('Please enter both recipient username and message.');
+                return;
+            }
+            
+            if (!currentUser) {
+                showError('You must be logged in to send messages.');
+                return;
+            }
+            
+            try {
+                // Find the recipient user by username
+                const usersSnapshot = await db.collection('users')
+                    .where('username', '==', toUsername)
+                    .limit(1)
+                    .get();
+                
+                if (usersSnapshot.empty) {
+                    showError('User not found. Please check the username. The recipient must have an account in the system.');
+                    return;
+                }
+                
+                const recipientDoc = usersSnapshot.docs[0];
+                const toUserId = recipientDoc.id;
+                
+                if (toUserId === currentUser.uid) {
+                    showError('You cannot send a message to yourself.');
+                    return;
+                }
+                
+                // Create participants array for querying
+                const participants = [currentUser.uid, toUserId].sort();
+                
+                await db.collection('privateMessages').add({
+                    fromUserId: currentUser.uid,
+                    toUserId: toUserId,
+                    message: message,
+                    participants: participants,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                messageInput.value = '';
+                toInput.value = '';
+            } catch (error) {
+                if (error.code === 'permission-denied') {
+                    showError('Permission denied. Please check your Firestore security rules. See the comment in the code for the required rules.', error);
+                } else {
+                    showError('Failed to send private message.', error);
+                }
+            }
+        }
+        
+        function logout() {
+            auth.signOut();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Allow Enter key to submit on login screen
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAuth();
+            }
+        });
+        
+        document.getElementById('username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAuth();
+            }
+        });
+    </script>
+</body>
+</html>
+
