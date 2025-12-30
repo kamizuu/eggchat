@@ -521,6 +521,19 @@
         let notificationPermission = 'default';
         let notifiedMessageIds = new Set(); // Track which messages we've already notified
         let isFirstPrivateMessageLoad = true; // Track if this is the first load
+        let serviceWorkerRegistration = null; // Store Service Worker registration
+        
+        // Register Service Worker for Android notifications
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then((registration) => {
+                    console.log('Service Worker registered successfully:', registration);
+                    serviceWorkerRegistration = registration;
+                })
+                .catch((error) => {
+                    console.error('Service Worker registration failed:', error);
+                });
+        }
         
         // Check if user is already logged in
         auth.onAuthStateChanged((user) => {
@@ -732,15 +745,13 @@
                             notificationsEnabled = true;
                             localStorage.setItem('eggchat_notifications_enabled', 'true');
                             
-                            // Show a test notification
-                            if (currentUser) {
-                                const userDoc = await db.collection('users').doc(currentUser.uid).get();
-                                const username = userDoc.exists ? userDoc.data().username : 'User';
-                                new Notification('EggChat', {
-                                    body: `Notifications enabled! You'll be notified of new private messages.`,
-                                    icon: '🔔',
-                                    tag: 'notification-enabled'
-                                });
+                            // Show a test notification using Service Worker (Android-compatible)
+                            if (currentUser && serviceWorkerRegistration) {
+                                showNotificationViaServiceWorker(
+                                    'EggChat',
+                                    `Notifications enabled! You'll be notified of new private messages.`,
+                                    'notification-enabled'
+                                );
                             }
                         } else {
                             // Permission denied
@@ -765,6 +776,32 @@
             }
         }
         
+        // Android-compatible notification function using Service Worker
+        async function showNotificationViaServiceWorker(title, body, tag) {
+            if (!serviceWorkerRegistration) {
+                console.error('Service Worker not registered');
+                return;
+            }
+            
+            try {
+                await serviceWorkerRegistration.showNotification(title, {
+                    body: body,
+                    icon: '💬',
+                    badge: '💬',
+                    tag: tag,
+                    requireInteraction: false,
+                    vibrate: [200, 100, 200],
+                    // Additional options for Android
+                    silent: false,
+                    data: {
+                        url: window.location.href
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to show notification via Service Worker:', error);
+            }
+        }
+        
         function showPrivateMessageNotification(fromUsername, message) {
             if (!notificationsEnabled || notificationPermission !== 'granted') {
                 return;
@@ -777,28 +814,37 @@
             }
             
             try {
-                const notification = new Notification(`${fromUsername} (EggChat)`, {
-                    body: message.length > 100 ? message.substring(0, 100) + '...' : message,
-                    icon: '💬',
-                    tag: `private-message-${Date.now()}`,
-                    requireInteraction: false,
-                    badge: '💬',
-                    vibrate: [200, 100, 200] // Vibration pattern for mobile devices
-                });
+                const truncatedMessage = message.length > 100 ? message.substring(0, 100) + '...' : message;
+                const notificationTitle = `${fromUsername} (EggChat)`;
+                const notificationTag = `private-message-${Date.now()}`;
                 
-                // Handle notification click - focus the window
-                notification.onclick = function() {
-                    window.focus();
-                    notification.close();
-                };
+                // Use Service Worker for Android compatibility
+                if (serviceWorkerRegistration && 'showNotification' in serviceWorkerRegistration) {
+                    showNotificationViaServiceWorker(notificationTitle, truncatedMessage, notificationTag);
+                } else {
+                    // Fallback to direct notification for browsers that don't need Service Worker
+                    const notification = new Notification(notificationTitle, {
+                        body: truncatedMessage,
+                        icon: '💬',
+                        tag: notificationTag,
+                        requireInteraction: false,
+                        badge: '💬',
+                        vibrate: [200, 100, 200]
+                    });
+                    
+                    notification.onclick = function() {
+                        window.focus();
+                        notification.close();
+                    };
+                }
             } catch (error) {
                 console.error('Failed to show notification:', error);
-                // If notification fails, log for debugging
                 console.log('Notification debug info:', {
                     enabled: notificationsEnabled,
                     permission: notificationPermission,
                     visibilityState: document.visibilityState,
-                    hasFocus: document.hasFocus()
+                    hasFocus: document.hasFocus(),
+                    hasServiceWorker: !!serviceWorkerRegistration
                 });
             }
         }
@@ -1068,4 +1114,3 @@
     </script>
 </body>
 </html>
-
