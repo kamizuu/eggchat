@@ -230,6 +230,73 @@
             color: #a5b4ff;
         }
         
+        /* Notification Toggle Switch */
+        .notification-toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2a2a3e;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #3a3a4e;
+        }
+        
+        .notification-toggle-label {
+            color: #c0c0c0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #3a3a4e;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #667eea;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        
+        .toggle-switch input:disabled + .toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         /* Mobile Responsive Styles */
         @media (max-width: 768px) {
             body {
@@ -300,6 +367,14 @@
                 padding: 14px;
                 font-size: 16px; /* Prevents zoom on iOS */
             }
+            
+            .notification-toggle-container {
+                padding: 10px 12px;
+            }
+            
+            .notification-toggle-label {
+                font-size: 13px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -352,6 +427,14 @@
         <div id="chatScreen" class="hidden">
             <h1>EggChat</h1>
             <div class="welcome" id="welcomeMessage">Welcome, <span id="usernameDisplay"></span></div>
+            
+            <div class="notification-toggle-container">
+                <label class="notification-toggle-label" for="notificationToggle">Enable Notifications</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="notificationToggle" onchange="handleNotificationToggle()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
             
             <h2>Public</h2>
             <div class="send-form">
@@ -434,6 +517,10 @@
         let currentUser = null;
         let publicMessagesUnsubscribe = null;
         let privateMessagesUnsubscribe = null;
+        let notificationsEnabled = false;
+        let notificationPermission = 'default';
+        let notifiedMessageIds = new Set(); // Track which messages we've already notified
+        let isFirstPrivateMessageLoad = true; // Track if this is the first load
         
         // Check if user is already logged in
         auth.onAuthStateChanged((user) => {
@@ -558,6 +645,10 @@
                 privateMessagesUnsubscribe();
                 privateMessagesUnsubscribe = null;
             }
+            
+            // Reset notification tracking
+            isFirstPrivateMessageLoad = true;
+            notifiedMessageIds.clear();
         }
         
         function showChatScreen() {
@@ -569,6 +660,126 @@
             
             // Set up Enter key listeners for chat inputs
             setupChatEnterKeyListeners();
+            
+            // Initialize notification settings
+            initializeNotifications();
+        }
+        
+        // Notification Functions
+        function initializeNotifications() {
+            // Check if notifications are supported
+            if (!('Notification' in window)) {
+                document.getElementById('notificationToggle').disabled = true;
+                return;
+            }
+            
+            // Check current permission status
+            notificationPermission = Notification.permission;
+            
+            // Load saved preference from localStorage
+            const savedPreference = localStorage.getItem('eggchat_notifications_enabled');
+            if (savedPreference === 'true') {
+                notificationsEnabled = true;
+                document.getElementById('notificationToggle').checked = true;
+                
+                // If permission is granted, we're good
+                if (notificationPermission === 'granted') {
+                    // Notifications are ready
+                } else if (notificationPermission === 'default') {
+                    // Permission not yet requested, will ask when toggle is turned on
+                    notificationsEnabled = false;
+                    document.getElementById('notificationToggle').checked = false;
+                } else {
+                    // Permission denied
+                    notificationsEnabled = false;
+                    document.getElementById('notificationToggle').checked = false;
+                    document.getElementById('notificationToggle').disabled = true;
+                }
+            } else {
+                notificationsEnabled = false;
+                document.getElementById('notificationToggle').checked = false;
+            }
+        }
+        
+        async function handleNotificationToggle() {
+            const toggle = document.getElementById('notificationToggle');
+            const isChecked = toggle.checked;
+            
+            if (!('Notification' in window)) {
+                showError('Notifications are not supported in this browser.');
+                toggle.checked = false;
+                return;
+            }
+            
+            if (isChecked) {
+                // User wants to enable notifications
+                if (notificationPermission === 'granted') {
+                    // Permission already granted
+                    notificationsEnabled = true;
+                    localStorage.setItem('eggchat_notifications_enabled', 'true');
+                } else if (notificationPermission === 'default') {
+                    // Need to request permission
+                    try {
+                        const permission = await Notification.requestPermission();
+                        notificationPermission = permission;
+                        
+                        if (permission === 'granted') {
+                            notificationsEnabled = true;
+                            localStorage.setItem('eggchat_notifications_enabled', 'true');
+                            
+                            // Show a test notification
+                            if (currentUser) {
+                                const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                                const username = userDoc.exists ? userDoc.data().username : 'User';
+                                new Notification('EggChat', {
+                                    body: `Notifications enabled! You'll be notified of new private messages.`,
+                                    icon: '🔔',
+                                    tag: 'notification-enabled'
+                                });
+                            }
+                        } else {
+                            // Permission denied
+                            notificationsEnabled = false;
+                            toggle.checked = false;
+                            showError('Notification permission was denied. Please enable it in your browser settings.');
+                        }
+                    } catch (error) {
+                        notificationsEnabled = false;
+                        toggle.checked = false;
+                        showError('Failed to request notification permission.', error);
+                    }
+                } else {
+                    // Permission was previously denied
+                    toggle.checked = false;
+                    showError('Notification permission was denied. Please enable it in your browser settings and refresh the page.');
+                }
+            } else {
+                // User wants to disable notifications
+                notificationsEnabled = false;
+                localStorage.setItem('eggchat_notifications_enabled', 'false');
+            }
+        }
+        
+        function showPrivateMessageNotification(fromUsername, message) {
+            if (!notificationsEnabled || notificationPermission !== 'granted') {
+                return;
+            }
+            
+            // Don't notify if user is currently viewing the page (optional - you can remove this if you want notifications even when tab is active)
+            if (document.hasFocus()) {
+                return;
+            }
+            
+            try {
+                new Notification(`New message from ${fromUsername}`, {
+                    body: message.length > 100 ? message.substring(0, 100) + '...' : message,
+                    icon: '💬',
+                    tag: `private-message-${Date.now()}`,
+                    requireInteraction: false
+                });
+            } catch (error) {
+                console.error('Failed to show notification:', error);
+            }
         }
         
         function setupChatEnterKeyListeners() {
@@ -671,10 +882,16 @@
                     
                     // Get all user data for usernames
                     const userIds = new Set();
+                    const messagesToProcess = [];
+                    
                     snapshot.forEach((doc) => {
                         const data = doc.data();
                         userIds.add(data.fromUserId);
                         userIds.add(data.toUserId);
+                        messagesToProcess.push({
+                            id: doc.id,
+                            data: data
+                        });
                     });
                     
                     const userDataMap = {};
@@ -686,8 +903,9 @@
                     });
                     await Promise.all(userPromises);
                     
-                    snapshot.forEach((doc) => {
-                        const data = doc.data();
+                    // Process messages and check for new ones to notify
+                    messagesToProcess.forEach((msg) => {
+                        const data = msg.data;
                         const messageDiv = document.createElement('div');
                         messageDiv.className = 'message private-message';
                         
@@ -706,10 +924,26 @@
                                 <div class="message-header">${fromUsername} -></div>
                                 <div class="message-content">${escapeHtml(data.message)}</div>
                             `;
+                            
+                            // Check if this is a new message we should notify about
+                            if (!isFirstPrivateMessageLoad && !notifiedMessageIds.has(msg.id)) {
+                                // This is a new message received by the user
+                                notifiedMessageIds.add(msg.id);
+                                showPrivateMessageNotification(fromUsername, data.message);
+                            }
                         }
                         
                         privateMessagesDiv.appendChild(messageDiv);
                     });
+                    
+                    // Mark that we've completed the first load
+                    if (isFirstPrivateMessageLoad) {
+                        isFirstPrivateMessageLoad = false;
+                        // Mark all current messages as already seen
+                        messagesToProcess.forEach((msg) => {
+                            notifiedMessageIds.add(msg.id);
+                        });
+                    }
                 }, (error) => {
                     if (error.code === 'permission-denied') {
                         showError('Permission denied. Please check your Firestore security rules. See the comment in the code for the required rules.', error);
