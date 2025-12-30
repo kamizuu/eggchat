@@ -777,7 +777,7 @@
             }
             
             try {
-                const notification = new Notification(`New message from ${fromUsername}`, {
+                const notification = new Notification(`${fromUsername} (EggChat)`, {
                     body: message.length > 100 ? message.substring(0, 100) + '...' : message,
                     icon: '💬',
                     tag: `private-message-${Date.now()}`,
