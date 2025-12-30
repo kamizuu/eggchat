@@ -666,6 +666,11 @@
         }
         
         // Notification Functions
+        // NOTE: If notifications aren't working on Windows 11 with Brave:
+        // 1. Check Windows Settings > System > Notifications - ensure Brave is allowed
+        // 2. Check Windows Focus Assist settings - turn off Focus Assist or add Brave to priority list
+        // 3. Check Brave Settings > Site Settings > Notifications - ensure site has permission
+        // 4. Make sure the browser tab/window isn't in the foreground when testing
         function initializeNotifications() {
             // Check if notifications are supported
             if (!('Notification' in window)) {
@@ -765,20 +770,36 @@
                 return;
             }
             
-            // Don't notify if user is currently viewing the page (optional - you can remove this if you want notifications even when tab is active)
-            if (document.hasFocus()) {
+            // Check if page is visible - only skip notifications if page is visible AND has focus
+            // This allows notifications when tab is in background even if browser window has focus
+            if (document.visibilityState === 'visible' && document.hasFocus()) {
                 return;
             }
             
             try {
-                new Notification(`New message from ${fromUsername}`, {
+                const notification = new Notification(`New message from ${fromUsername}`, {
                     body: message.length > 100 ? message.substring(0, 100) + '...' : message,
                     icon: '💬',
                     tag: `private-message-${Date.now()}`,
-                    requireInteraction: false
+                    requireInteraction: false,
+                    badge: '💬',
+                    vibrate: [200, 100, 200] // Vibration pattern for mobile devices
                 });
+                
+                // Handle notification click - focus the window
+                notification.onclick = function() {
+                    window.focus();
+                    notification.close();
+                };
             } catch (error) {
                 console.error('Failed to show notification:', error);
+                // If notification fails, log for debugging
+                console.log('Notification debug info:', {
+                    enabled: notificationsEnabled,
+                    permission: notificationPermission,
+                    visibilityState: document.visibilityState,
+                    hasFocus: document.hasFocus()
+                });
             }
         }
         
@@ -1010,7 +1031,7 @@
                 });
                 
                 messageInput.value = '';
-                toInput.value = '';
+                // Keep the "To" field filled so user can easily send another message
             } catch (error) {
                 if (error.code === 'permission-denied') {
                     showError('Permission denied. Please check your Firestore security rules. See the comment in the code for the required rules.', error);
